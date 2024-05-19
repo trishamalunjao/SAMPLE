@@ -1,0 +1,288 @@
+<template>
+    <div class="profile-container">
+      <h1 class="template-title">Profile</h1>
+      <div class="user-profile">
+        <div>
+          <img @click="openImageModal" width="200" height="200" :src="userData.profilePicture || userImage" alt="profile-picture"/>
+          <h3 style="text-align: center;">{{ userData.userlevel }}</h3>
+        </div>
+        <div class="profile-details">
+          <h1>{{ userData.name }}</h1>
+          <h4>{{ userData.alumna_email }}</h4>
+          <div style="display: flex; align-items: center;">
+            <h4 style="margin-right: 10px;">{{ userData.address }}</h4>
+          </div>
+          <button class="btn btn-sm btn-success mx-1" style="padding: 5px 20px;">Edit Information</button>
+        </div>
+      </div>
+      <div class="profile-info">
+        <div>
+          <label for="alumnaID">Admin ID:</label>
+          <input :disabled="!isEditable" type="text" id="alumnaID" name="alumnaID" v-model="userData.alumnaID">
+        </div>
+    
+        <div>
+          <label for="birthday">Birthday:</label>
+          <input :disabled="!isEditable" type="date" id="birthday" name="birthday" v-model="userData.birthday">
+        </div>
+    
+        <div>
+          <label for="name">Name:</label>
+          <input :disabled="!isEditable" type="text" id="name" name="name" v-model="userData.name">
+        </div>
+    
+        <div>
+          <label for="phone">Phone:</label>
+          <input :disabled="!isEditable" type="tel" id="phone" name="phone" v-model="userData.phone">
+        </div>
+    
+        <div>
+          <label for="alumna_email">Email:</label>
+          <input :disabled="!isEditable" type="email" id="alumna_email" name="alumna_email" v-model="userData.alumna_email">
+        </div>
+    
+        <div>
+          <label for="address">Address:</label>
+          <input :disabled="!isEditable" type="text" id="address" name="address" v-model="userData.address">
+        </div>
+    
+        <div>
+          <label for="year">Year of Administratorship:</label>
+          <input :disabled="!isEditable" type="number" id="year" name="year" v-model="userData.year">
+        </div>
+
+        
+      </div>
+  
+      <div>
+        <button v-if="isEditable" @click="showModal">Save Changes</button>
+      </div>
+  
+      <div v-if="isModalOpen" class="modal">
+        <div class="modal-content">
+          <span class="close" @click="closeModal">&times;</span>
+          <p>Are you sure you want to save changes?</p>
+          <button @click="saveChanges">Save</button>
+          <button @click="closeModal">Cancel</button>
+        </div>
+      </div>
+  
+      <div v-if="isImageModalOpen" class="modal">
+        <div class="modal-content">
+          <div class="close" @click="closeImageModal"><span style="float: right;">&times;</span></div>
+          <p>Upload Image here</p>
+          <div>
+            <label for="profile-picture">Profile Picture:</label>
+            <input class="form-control" type="file" id="profile-picture" name="profile-picture" @change="handleFileUpload">
+          </div>
+          <div>
+            <div style="float: left">
+              <button class="btn btn-success btn-sm" style="padding: 5px 40px;" @click="uploadPhoto">Upload Photo</button>
+            </div>
+            <div style="float: right;">
+              <button class="btn btn-danger btn-sm" style="padding: 5px 40px;" @click="deletePhoto">Delete Photo</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+    
+  <script setup>
+import { ref, onMounted } from 'vue';
+import { db } from '../../firebase/index.js';
+import { useRoute } from 'vue-router';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { getStorage, ref as storageRef, uploadBytes, deleteObject, getDownloadURL } from 'firebase/storage';
+
+const storage = getStorage();
+
+const route = useRoute();
+const userId = route.query.userId;
+const userData = ref({
+  name: '',
+  alumna_email: '',
+  userlevel: '',
+  alumnaID: '',
+  birthday: '',
+  phone: '',
+  address: '',
+  year: '',
+  profilePicture: ''
+});
+const userDataLoaded = ref(false);
+const isEditable = ref(false);
+const isModalOpen = ref(false);
+const isImageModalOpen = ref(false);
+let fileToUpload = null;
+
+import userImage from '@/assets/images/user.png';
+
+onMounted(async () => {
+  try {
+    const docRef = doc(db, 'users', userId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      userData.value = docSnap.data();
+      userDataLoaded.value = true;
+    } else {
+      console.log('No such document!');
+    }
+  } catch (error) {
+    console.error('Error getting document:', error);
+  }
+});
+
+const editProfile = () => {
+  isEditable.value = !isEditable.value;
+};
+
+const saveChanges = async () => {
+  try {
+    const docRef = doc(db, 'users', userId);
+    await updateDoc(docRef, userData.value);
+    closeModal();
+    isEditable.value = false;
+  } catch (error) {
+    console.error('Error updating document:', error);
+  }
+};
+
+const openImageModal = () => {
+  isImageModalOpen.value = true;
+};
+
+const closeImageModal = () => {
+  isImageModalOpen.value = false;
+};
+
+const handleFileUpload = (event) => {
+  fileToUpload = event.target.files[0];
+};
+
+const showModal = () => {
+  isModalOpen.value = true;
+};
+
+const closeModal = () => {
+  isModalOpen.value = false;
+};
+
+const uploadPhoto = async () => {
+  if (!fileToUpload) {
+    return;
+  }
+
+  try {
+    const storageReference = storageRef(storage, `users/${userId}/profilePicture.jpg`);
+    const snapshot = await uploadBytes(storageReference, fileToUpload);
+
+    const downloadURL = await getDownloadURL(storageReference);
+
+    const docRef = doc(db, 'users', userId);
+    await updateDoc(docRef, { profilePicture: downloadURL });
+    
+    userData.value.profilePicture = downloadURL;
+
+    fileToUpload = null;
+    closeImageModal();
+  } catch (error) {
+    console.error('Error uploading photo:', error);
+  }
+};
+
+
+const deletePhoto = async () => {
+  try {
+    const storageReference = storageRef(storage, `users/${userId}/profilePicture.jpg`);
+    await deleteObject(storageReference);
+
+    const docRef = doc(db, 'users', userId);
+    await updateDoc(docRef, { profilePicture: '' });
+
+    window.location.reload();
+
+    closeImageModal();
+  } catch (error) {
+    console.error('Error deleting photo:', error);
+  }
+};
+  
+</script>
+    
+  
+  <style>
+  .modal {
+    display: flex;
+    position: fixed;
+    z-index: 1;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.4);
+  }
+  
+  .modal-content {
+    background-color: #fefefe;
+    margin: 15% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%;
+  }
+  
+  .close {
+    color: #aaaaaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+  }
+  
+  .close:hover,
+  .close:focus {
+    color: #000;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .profile-container {
+      width: 100%;
+      margin: 24px;
+      overflow: auto;
+  }
+  .template-title {
+      margin: 10px;
+  }
+  .user-profile {
+      margin: 10px;
+      display: flex;
+  }
+  .profile-details {
+      margin-left: 24px;
+  }
+  .profile-details h1 {
+      font-size: 4rem;
+  }
+  .profile-info {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  
+  .profile-info div {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .profile-info input {
+    padding: 10px;
+    font-size: 14px;
+  }
+  
+  .profile-info input[type="password"] {
+    font-family: 'password';
+  }
+  </style>
+  

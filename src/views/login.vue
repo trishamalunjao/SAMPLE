@@ -1,0 +1,70 @@
+<template>
+  <div class="main-container">
+    <div class="login-container d-flex flex-column align-items-center justify-content-between" >
+      <form class="mt-0" @submit.prevent="signin">
+        <div class="login-logo">
+          <img src="@/assets/images/b-logo.png" alt="Logo" style="width: auto; height: 100px; margin-top: 150px; margin-bottom: 30px;">
+        </div>
+        <input class="form-control input-lg" type="text" id="alumniID" name="alumniID" v-model="alumniID" required placeholder="Alumni ID">
+        <input class="form-control input-lg" type="password" id="password" name="password" v-model="password" required placeholder="Password">
+        <p v-if="errMsg">{{ errMsg }}</p>
+        <div>
+          <a href="#" class="forgot-password-link" style="margin-left: 300px">Forgot Password?</a>
+        </div>
+        <button type="submit" style="border: none; margin-top: 20px">Login</button>
+      </form>
+      <div class="mb-2">
+        <a class="login-footer text-dark">Copyright &copy; 2024 AlmaMemento. All Rights Reserved.</a>
+      </div>
+    </div>
+    <div class="logo-container" >
+      <!-- <img src="@/assets/images/ctu-logo.png" alt="Logo"> -->
+    </div>
+  </div>
+</template>
+  
+  <script setup>
+  import { ref } from 'vue'
+  import { useRouter } from 'vue-router'
+  import { db } from '../firebase/index.js'
+  import { collection, getDocs, updateDoc, doc, query, where } from 'firebase/firestore'
+  
+  const alumniID = ref("")
+  const password = ref("")
+  const errMsg = ref("")
+  
+  const router = useRouter()
+  
+  const signin = async () => {
+    try {
+      console.log("Trying to sign in...")
+  
+      const q = query(collection(db, "users"), where("alumnaID", "==", alumniID.value), where("alumna_password", "==", password.value));
+      const querySnapshot = await getDocs(q);
+      const user = querySnapshot.docs[0];
+  
+      if (user) {
+        console.log("User found:", user.data())
+  
+        if (user.data().status === 'active') {
+          await updateDoc(doc(db, 'users', user.id), { loggedIn: true });
+  
+          if (user.data().userlevel === 'administrator') {
+            router.push({ name: 'adminDashboard', query: { userId: user.id } })
+          } else if(user.data().userlevel === 'alumni') {
+            router.push({ name: 'alumniDashboard', query: { userId: user.id, alumniId: user.data().alumnaID } })
+          }
+  
+          console.log("Current URL:", window.location.href);
+        } else {
+          errMsg.value = "Your account has been deactivated"
+        }
+      } else {
+        errMsg.value = "No account with that alumni number and password was found"
+      }
+    } catch (error) {
+      console.error("Error:", error.message)
+      errMsg.value = "An error occurred"
+    }
+  }
+  </script>
