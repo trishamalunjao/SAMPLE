@@ -5,7 +5,7 @@
         <li v-for="(item, index) in sidebarItems" :key="index">
           <a class="text-light" @click="handleSidebarItemClick(item)">
             {{ item }}
-            <span v-if="item === 'Manage Users' || item === 'Yearbook'" class="dropdown-arrow">▼</span>
+            <span v-if="item === 'Manage Users' || item === 'Yearbook'" class="dropdown-arrow"><i class="fas fa-power-off"></i></span>
           </a>
           <ul v-if="dropdownItemsVisibility[item]">
             <li v-for="(dropdownItem, dropdownIndex) in dropdownItems[item]" :key="dropdownIndex">
